@@ -113,6 +113,8 @@ class SlideShow:
             self.root.bind("<Left>", self.prev_index)
             self.root.bind("<Right>", self.next_index)
             self.root.bind("<Down>", self.go_back)
+            self.root.bind("<Prior>", self.prev_dir) # page up
+            self.root.bind("<Next>", self.next_dir) # page down
             self.root.bind("<space>", self.pause_play)
             self.root.bind("<Return>", self.next_index)
             self.root.bind("<Escape>", self.close_out)
@@ -263,6 +265,7 @@ class SlideShow:
     
     def get_rand(self):
         self.previous = self.index
+        # this math avoids repeating the current image
         newindex = randint(0,self.length-2)
         newindex += 1 if newindex >= self.index else 0
         self.index = newindex
@@ -309,6 +312,42 @@ class SlideShow:
     
     def prev_index(self, event=None):
         self.get_prev()
+        # reset loop
+        if self.looperid:
+            self.root.after_cancel(self.looperid)
+        self.show()
+        self.looperid = self.root.after(self.delayms, self.showloop)
+        return "break"
+    
+    
+    def next_dir(self, event=None):
+        index_dir = os.path.dirname(self.imagepaths[self.index])
+        for i in range(self.length):
+            temp = (self.index + i) % self.length
+            if index_dir != os.path.dirname(self.imagepaths[temp]):
+                break
+        else:
+            temp = (self.index + 1) % self.length
+        self.previous = self.index
+        self.index = temp
+        # reset loop
+        if self.looperid:
+            self.root.after_cancel(self.looperid)
+        self.show()
+        self.looperid = self.root.after(self.delayms, self.showloop)
+        return "break"
+    
+    
+    def prev_dir(self, event=None):
+        index_dir = os.path.dirname(self.imagepaths[self.index])
+        for i in range(self.length):
+            temp = (self.index - i) % self.length
+            if index_dir != os.path.dirname(self.imagepaths[temp]):
+                break
+        else:
+            temp = (self.index - 1) % self.length
+        self.previous = self.index
+        self.index = temp
         # reset loop
         if self.looperid:
             self.root.after_cancel(self.looperid)
