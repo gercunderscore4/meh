@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 '''
 FILE: meh.py
+
 PURPOSE: I wanted something like feh on Windows, so I built this.
+
 NOTES:
     - Requires python 2.7, PIL, ImageTk
       on raspberry-pi (untested, I already installed these):
@@ -13,29 +15,26 @@ NOTES:
         or try https://www.pkimber.net/howto/python/modules/pillow.html
         sudo apt-get install python-imaging
     - controls:
-          space  : pause
-          enter  : go to next image in sequence
-          right  : go to next image in sequence
-          left   : go to previous image in sequence
-          down   : go to last viewed image
-          z      : go to random image
-          q      : shuffle/sort sequence
-          y      : reload image list from paths
-          F11    : toggle fullscreen
-          escape : exit
-          delete : permanently delete image from computer (skip Recycle Bin)
+          space             : pause
+          enter             : go to next image in sequence
+          right             : go to next image in sequence
+          left              : go to previous image in sequence
+          down              : go to last viewed image
+          page up           : go to last image of previous folder
+          page down         : go to first image of next folder
+          z                 : go to random image
+          q                 : shuffle/sort sequence
+          y                 : reload image list from paths
+          F11               : toggle fullscreen
+          escape            : exit
+          delete            : permanently delete image from computer (skip Recycle Bin)
+          ctrl+shift+delete : permanently delete folder from computer (skip Recycle Bin)
+
+HISTORY:
+    (see git)
+
 TODO:
     - simplify code
-HISTORY:
-    Date       | Version | Author        | Comment
-    -----------+---------+---------------+--------------------
-    2017-01-13 | 1.0.1   | Geoffrey Card | Added documentation
-    2017-01-14 | 2.0.0   | Geoffrey Card | Performance improvements, user can unshuffle and remain in place
-    2017-01-14 | 3.0.0   | Geoffrey Card | Added regex and permanent deletion
-    2017-01-15 | 4.0.0   | Geoffrey Card | Added ability to go back to previous image
-    2017-01-16 | 5.0.0   | Geoffrey Card | GIF animation
-    2017-09-08 | 5.1.0   | Geoffrey Card | Added geometry and more input options
-    2017-09-23 | 5.1.1   | Geoffrey Card | Increasing robustness for missing files and reload button
 '''
 
 import os
