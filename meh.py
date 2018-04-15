@@ -50,6 +50,7 @@ from PIL import Image, ImageTk
 from argparse import ArgumentParser
 from random import randint, shuffle
 import pdb
+import shutil
 
 defaultwidth  = 800
 defaultheight = 600
@@ -118,6 +119,7 @@ class SlideShow:
             self.root.bind("<space>", self.pause_play)
             self.root.bind("<Return>", self.next_index)
             self.root.bind("<Escape>", self.close_out)
+            self.root.bind("<Control-Shift-Delete>", self.delete_folder)
             self.root.bind("<Delete>", self.delete_file)
             self.root.bind("<Configure>", self.on_resize) # not working
 
@@ -394,11 +396,30 @@ class SlideShow:
         self.length -= 1
         self.imagepaths = self.imagepaths[:self.index] + self.imagepaths[self.index+1:]
         # delete
-        print('Delete '+os.path.abspath(path))
-        os.remove(os.path.abspath(path))
+        print('Delete file: '+path)
+        os.remove(path)
         # change image (close if none left)
         if self.length > 0:
             self.index %= self.length
+            self.show()
+        else:
+            try:
+                self.root.destroy()
+            except:
+                pass
+            return "break"
+    
+    
+    def delete_folder(self, event=None):
+        path = self.imagepaths[self.index]
+        index = self.index
+        dir = os.path.dirname(path)
+        print('Delete folder: '+dir)
+        shutil.rmtree(dir)
+        self.update_imagepaths()
+        # change image (close if none left)
+        if self.length > 0:
+            self.index = index % self.length
             self.show()
         else:
             try:
