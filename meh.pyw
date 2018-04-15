@@ -13,7 +13,7 @@ import Tkinter as tk
 import PIL, ImageTk
 from PIL import Image
 from argparse import ArgumentParser
-from random import randint
+from random import randint, shuffle
 import pdb
 
 defaultwidth = 800
@@ -53,6 +53,8 @@ class SlideShow:
         self.fullscreen = fullscreen
         self.delay      = delay
         self.zoomed     = zoomed
+        self.paused     = False
+        self.shuffled   = False
         self.width      = width
         self.height     = height
         self.slide      = None
@@ -77,9 +79,10 @@ class SlideShow:
             # controls
             self.root.bind("<F11>", self.toggle_fullscreen)
             self.root.bind("<z>", self.rand_index)
+            self.root.bind("<q>", self.shuffle_sort)
             self.root.bind("<Left>", self.prev_index)
             self.root.bind("<Right>", self.next_index)
-            self.root.bind("<space>", self.next_index)
+            self.root.bind("<space>", self.pause_play)
             self.root.bind("<Return>", self.next_index)
             self.root.bind("<Escape>", self.close_out)
             self.root.bind("<Configure>", self.on_resize) # not working
@@ -99,22 +102,22 @@ class SlideShow:
 
     def show(self):
         # show
-
-        # remove preivous slide
-        if self.slide:
-            self.canvas.delete(self.slide)
-
-        # get image for new slide
-        img = Image.open(self.reel[self.index])
-
-        # resize if necessary
-        if self.zoomed:
-            widthratio = float(self.width)/img.size[0]
-            heightratio = float(self.height)/img.size[1]
-            if widthratio < heightratio:
-                img = img.resize((int(self.width), int(img.size[1]*widthratio)), PIL.Image.ANTIALIAS)
-            else:
-                img = img.resize((int(img.size[0]*heightratio), int(self.height)), PIL.Image.ANTIALIAS)
+        if not self.paused:
+            # remove preivous slide
+            if self.slide:
+                self.canvas.delete(self.slide)
+    
+            # get image for new slide
+            img = Image.open(self.reel[self.index])
+    
+            # resize if necessary
+            if self.zoomed:
+                widthratio = float(self.width)/img.size[0]
+                heightratio = float(self.height)/img.size[1]
+                if widthratio < heightratio:
+                    img = img.resize((int(self.width), int(img.size[1]*widthratio)), PIL.Image.ANTIALIAS)
+                else:
+                    img = img.resize((int(img.size[0]*heightratio), int(self.height)), PIL.Image.ANTIALIAS)
 
         # display slide
         self.photoimage = ImageTk.PhotoImage(img)
@@ -177,6 +180,19 @@ class SlideShow:
         self.looperid = self.root.after(int(self.delay*1000), self.showloop)        
         return "break"
 
+    def pause_play(self, event=None):
+        self.paused = not self.paused
+        return "break"
+
+
+    def shuffle_sort(self, event=None):
+        if self.shuffled:
+            self.reel.sort()
+        else:
+            shuffle(self.reel)
+        self.shuffled = not self.shuffled
+        return "break"
+
 
     def close_out(self, event=None):
         try:
@@ -223,7 +239,7 @@ if __name__ == '__main__':
     args.recursive = True
     args.fullscreen = False
     args.zoomed = True
-    args.delay = 7
+    args.delay = 12
     
     #print(args.imagepath)
     imagepaths = []
