@@ -1,18 +1,28 @@
-#!/usr/bin/python2.7
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 '''
 I wanted something like feh (image viewer) on Windows, so I built this.
 
-Notes:
-    - Requires python 2.7, PIL, ImageTk
-      For raspberry-pi (untested, I already installed these):
-        sudo apt-get install python-pip
-        sudo apt-get install python-tk
-        sudo apt-get install libjpeg-dev libfreetype6 libfreetype6-dev zlib1g-dev
-        sudo apt-get install python-imaging
-        or try https://www.pkimber.net/howto/python/modules/pillow.html
-        sudo apt-get install python-imaging
-      This might be out of date once updated to Python 3.
+usage: meh.py [-h] [--regex [REGEX]] [-r] [-R] [-f] [-z] [-a] [-d DELAY]
+              [-g GEOMETRY]
+              [paths [paths ...]]
+
+positional arguments:
+  paths                 path(s) to image(s) or folder(s) of image(s)
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --regex [REGEX]       regex filter on file paths
+  -r, --recurse         recurse though path directory
+  -R, --random          shuffle order
+  -f, --fullscreen      set to fullscreen mode
+  -z, --zoomed          scale images to fit the window (without distorting or
+                        obscuring them)
+  -a, --auto            autoplay (advance after 'delay' seconds)
+  -d DELAY, --delay DELAY
+                        delay (in seconds) before new slide is shown
+  -g GEOMETRY, --geometry GEOMETRY
+                        window geometry in the form wxh+x+y (from top-left)
 
 Controls:
     space             : pause
@@ -27,33 +37,39 @@ Controls:
     y                 : reload image list from paths
     F11               : toggle fullscreen
     escape            : exit
-    delete            : permanently delete image from computer (skip Recycle Bin)
-    ctrl+shift+delete : permanently delete folder from computer (skip Recycle Bin)
+    delete            : delete image from computer (send to Recycle Bin)
+    ctrl+shift+delete : delete folder from computer (send to Recycle Bin)
 
 Todo:
-    - upgrade to python3
     - simplify code
     - fix next image after deleting folder
+    - fix deleted.txt
+    - consider using log
+
+For SVG:
+    # https://stackoverflow.com/questions/15130670/pil-and-vectorbased-graphics
+    out = BytesIO()
+    cairosvg.svg2png(url='path/to/svg', write_to=out)
+    image = Image.open(out)
 '''
 
-import os, re, time, pdb, shutil
+import re, pdb
+from pathlib import Path
 from argparse import ArgumentParser
 from random import randint, shuffle
-try:
-    import Tkinter as tk # python2
-except:
-    import tkinter as tk # python3
+import tkinter as tk
+from io import BytesIO
+# installed
 from PIL import Image, ImageTk
-
-
-defaultwidth  = 800
-defaultheight = 600
-defaultx = 0
-defaulty = 0
+import win32gui, win32con
+import cairosvg
+from send2trash import send2trash
 
 
 class SlideShow:
-    def __init__(self, pathlist=[], recurse=False, regex='.', fullscreen=True, delay=1.0, zoomed=True, width=800, height=600, x=0, y=0, shuffle=False):
+    FILE_TYPES_LC = ('.png', '.jpg', '.jpeg', '.gif', '.bmp')
+
+    def __init__(self, pathlist, recurse, regex, fullscreen, paused, delay, zoomed, width, height, x, y, shuffle):
         # window
         self.title       = 'meh.py'
         self.fullscreen  = fullscreen
@@ -63,14 +79,14 @@ class SlideShow:
         self.y           = y
         # slide show
         self.zoomed      = zoomed
-        self.paused      = False
+        self.paused      = paused
         self.delayms     = int(delay*1000)
         self.slide       = None
         self.shuffle     = shuffle
         self.reloadId    = None
         # image selection
         self.recurse     = recurse
-        self.pattern     = re.compile(regex) # filter files
+        self.pattern     = re.compile(regex, re.IGNORECASE) # filter files
         self.pathlist    = pathlist # list of images or directories to search
         self.update_imagepaths()
         #self.imagepaths = self.update_imagepaths() # automatically loads variables
@@ -83,7 +99,7 @@ class SlideShow:
         self.gifCounter  = 0
         self.i           = 0
         # misc
-        self.listdeleted = True
+        self.listdeleted = False
 
         if self.imagepaths:
             # init Tkinter window
@@ -104,23 +120,23 @@ class SlideShow:
             self.root.attributes("-fullscreen", self.fullscreen)
 
             # controls
-            self.root.bind("<F11>", self.toggle_fullscreen)
-            self.root.bind("<z>", self.rand_index)
-            self.root.bind("<q>", self.shuffle_sort)
-            self.root.bind("<y>", self.reload_imagepaths)
-            self.root.bind("<Left>", self.prev_index)
-            self.root.bind("<Right>", self.next_index)
-            self.root.bind("<Down>", self.go_back)
-            self.root.bind("<Prior>", self.prev_dir) # page up
-            self.root.bind("<Control-Left>", self.prev_dir)
-            self.root.bind("<Next>", self.next_dir) # page down
-            self.root.bind("<Control-Right>", self.next_dir)
-            self.root.bind("<space>", self.pause_play)
-            self.root.bind("<Return>", self.next_index)
-            self.root.bind("<Escape>", self.close_out)
+            self.root.bind("<F11>",                  self.toggle_fullscreen)
+            self.root.bind("<z>",                    self.rand_index)
+            self.root.bind("<q>",                    self.shuffle_sort)
+            self.root.bind("<y>",                    self.reload_imagepaths)
+            self.root.bind("<Left>",                 self.prev_index)
+            self.root.bind("<Right>",                self.next_index)
+            self.root.bind("<Down>",                 self.go_back)
+            self.root.bind("<Prior>",                self.prev_dir) # page up
+            self.root.bind("<Control-Left>",         self.prev_dir)
+            self.root.bind("<Next>",                 self.next_dir) # page down
+            self.root.bind("<Control-Right>",        self.next_dir)
+            self.root.bind("<space>",                self.pause_play)
+            self.root.bind("<Return>",               self.next_index)
+            self.root.bind("<Escape>",               self.close_out)
             self.root.bind("<Control-Shift-Delete>", self.delete_folder)
-            self.root.bind("<Delete>", self.delete_file)
-            self.root.bind("<Configure>", self.on_resize) # not working
+            self.root.bind("<Delete>",               self.delete_file)
+            self.root.bind("<Configure>",            self.on_resize) # not working
 
             # show
             self.showloop()
@@ -135,35 +151,58 @@ class SlideShow:
             print('No images found')
 
 
-    def get_image_paths(self, pathlist):
-        for path in pathlist:
-            path = os.path.abspath(path)
-            if os.path.isfile(path):
-                # single file
-                yield(path)
-            elif os.path.isdir(path):
-                # directory
-                if self.recurse:
-                    # and all subdirectories
-                    for root, dirs, filenames in os.walk(path):
-                        for filename in filenames:
-                            yield(os.path.join(root,filename))
-                else:
-                    for item in os.listdir(path):
-                        item = os.path.join(path,item)
-                        if os.path.isfile(item):
-                            yield(item)
-
-
-    def filter_imagepaths(self, path):
-        return (path.split('.')[-1] in ('png', 'jpg', 'jpeg', 'gif')) and self.pattern.search(path)
 
 
     def update_imagepaths(self):
-        self.imagepaths = sorted(list(filter(self.filter_imagepaths, self.get_image_paths(self.pathlist))))
-        self.length     = len(self.imagepaths)
-        self.index      = len(self.imagepaths)-1
-        self.previous   = 0
+        '''
+        From given paths, get all files in the current directory.
+        Recurse if requested.
+        Can be called again to update.
+        '''
+
+        # setup glob string
+        globStr = '*.*'
+        if self.recurse:
+            globStr = '**/' + globStr
+
+        # generate list of all paths
+        self.imagepaths = []
+        firstPath = None
+        for path in self.pathlist:
+            # convert to path
+            path = Path(path).resolve()
+            # if a file, get directory
+            # (users typically like to be able to scroll through the current directory)
+            # except we need to start with that file
+            if path.is_file():
+                path = path.parent
+                # also grab first file path, use later to decide which image goes first
+                if firstPath is None:
+                    firstPath = path
+            # get all files in directory
+            if path.is_dir():
+                for f in path.glob(globStr):
+                    if f.is_file() and \
+                       (f.suffix.lower() in SlideShow.FILE_TYPES_LC) and \
+                       (self.pattern.search(str(f)) is not None):
+                        self.imagepaths.append(f.resolve())
+
+        # sort list
+        self.imagepaths.sort()
+
+        # get length
+        self.length = len(self.imagepaths)
+
+        # choose a starting index
+        self.index = self.length - 1
+        if firstPath is not None:
+            for i,f in enumerate(self.imagepaths):
+                if f.samefile(firstPath):
+                    self.index = i
+                    break
+        # set previous
+        self.previous = self.index
+
         return self.imagepaths
 
 
@@ -174,7 +213,7 @@ class SlideShow:
             self.title = self.imagepaths[self.index]
             self.root.wm_title(self.title)
             self.img = Image.open(self.title)
-            if self.title.lower().endswith('.gif'):
+            if self.title.suffix.lower() == '.gif':
                 # get delay
                 try:
                     self.gifDelay = self.img.info['duration']
@@ -321,10 +360,10 @@ class SlideShow:
 
 
     def next_dir(self, event=None):
-        index_dir = os.path.dirname(self.imagepaths[self.index])
+        index_dir = self.imagepaths[self.index].parent
         for i in range(self.length):
             temp = (self.index + i) % self.length
-            if index_dir != os.path.dirname(self.imagepaths[temp]):
+            if not index_dir.samefile(self.imagepaths[temp].parent):
                 break
         else:
             temp = (self.index + 1) % self.length
@@ -335,10 +374,10 @@ class SlideShow:
 
 
     def prev_dir(self, event=None):
-        index_dir = os.path.dirname(self.imagepaths[self.index])
+        index_dir = self.imagepaths[self.index].parent
         for i in range(self.length):
             temp = (self.index - i) % self.length
-            if index_dir != os.path.dirname(self.imagepaths[temp]):
+            if not index_dir.samefile(self.imagepaths[temp].parent):
                 break
         else:
             temp = (self.index - 1) % self.length
@@ -378,12 +417,11 @@ class SlideShow:
         self.length -= 1
         self.imagepaths = self.imagepaths[:self.index] + self.imagepaths[self.index+1:]
         # delete
-        print('Delete file: ' + path)
+        print('Delete file: "{}"'.format(path))
         if self.listdeleted:
             with open("deleted.txt", "a") as fout:
-                filename = os.path.basename(path)
-                fout.write(filename.lower() + '\n')
-        os.remove(path)
+                fout.write(path.name.lower() + '\n')
+        send2trash(str(path))
         # change image (close if none left)
         if self.length > 0:
             self.index %= self.length
@@ -399,16 +437,14 @@ class SlideShow:
     def delete_folder(self, event=None):
         path = self.imagepaths[self.index]
         index = self.index
-        dir = os.path.dirname(path)
-        print('Delete folder: ' + dir)
+        dir = path.parent
+        print('Delete folder: "{}"'.format(dir))
         if self.listdeleted:
             with open("deleted.txt", "a") as fout:
-                fout.write(os.path.basename(dir).lower() + '\n')
-                for root, dirs, filenames in os.walk(dir):
-                    for filename in filenames:
-                        subpath = os.path.join(root,filename)
-                        fout.write(filename.lower() + '\n')
-        shutil.rmtree(dir)
+                fout.write(dir.name.lower() + '\n')
+                for item in dir.rglob('*'):
+                    fout.write(item.name.lower() + '\n')
+        send2trash(str(dir))
         self.update_imagepaths()
         # change image (close if none left)
         if self.length > 0:
@@ -466,16 +502,20 @@ if __name__ == '__main__':
                         default=False)
     parser.add_argument('-R', '--random',
                         action='store_true',
-                        help='random order',
+                        help='shuffle order',
                         default=False)
     parser.add_argument('-f', '--fullscreen',
                         action='store_true',
-                        help='make canvas size of screen',
+                        help='set to fullscreen mode',
                         default=False)
     parser.add_argument('-z', '--zoomed',
                         action='store_true',
-                        help='scale images until they fit the screensize (without altering relative dimensions)',
+                        help='scale images to fit the window (without distorting or obscuring them)',
                         default=False)
+    parser.add_argument('-a', '--auto',
+                        action='store_true',
+                        help='autoplay (advance after \'delay\' seconds)',
+                        default=10)
     parser.add_argument('-d', '--delay',
                         action='store',
                         type=float,
@@ -484,10 +524,21 @@ if __name__ == '__main__':
     parser.add_argument('-g', '--geometry',
                         action='store',
                         type=str,
-                        help='geometry in the form wxh[+x+y]',
-                        default='{}x{}+{}+{}'.format(defaultwidth, defaultheight, defaultx, defaulty))
+                        help='window geometry in the form wxh+x+y (from top-left)',
+                        default='')
     args = parser.parse_args()
 
+    # hide console window
+    # https://www.semicolonworld.com/question/43710/how-to-hide-console-window-in-python
+    try:
+        frgrnd_wndw = win32gui.GetForegroundWindow();
+        wndw_title  = win32gui.GetWindowText(frgrnd_wndw);
+        if wndw_title.endswith('python.exe') or wndw_title.endswith('py.exe'):
+            win32gui.ShowWindow(frgrnd_wndw, win32con.SW_HIDE);
+    except:
+        pass
+
+    # parse geometry
     mat = re.match(r'\s*(?P<width>\d+)x(?P<height>\d+)\+(?P<x>\d+)\+(?P<y>\d+)\s*', args.geometry)
     if mat:
         width  = int(mat.groupdict()['width'])
@@ -496,10 +547,10 @@ if __name__ == '__main__':
         y      = int(mat.groupdict()['y'])
         print('geometry {}x{}+{}+{}'.format(width,height,x,y))
     else:
-        width  = defaultwidth
-        height = defaultheight
-        x      = defaultx
-        y      = defaulty
+        width  = 800
+        height = 600
+        x      = 0
+        y      = 0
         print('default geometry')
 
     sldshw = SlideShow(pathlist   = args.paths,
@@ -507,6 +558,7 @@ if __name__ == '__main__':
                        regex      = args.regex,
                        fullscreen = args.fullscreen,
                        zoomed     = args.zoomed,
+                       paused     = not args.auto,
                        delay      = args.delay,
                        width      = width,
                        height     = height,
