@@ -1,63 +1,59 @@
 #!/usr/bin/python2.7
 # -*- coding: utf-8 -*-
 '''
-FILE: meh.py
+I wanted something like feh (image viewer) on Windows, so I built this.
 
-PURPOSE: I wanted something like feh on Windows, so I built this.
-
-NOTES:
+Notes:
     - Requires python 2.7, PIL, ImageTk
-      on raspberry-pi (untested, I already installed these):
+      For raspberry-pi (untested, I already installed these):
         sudo apt-get install python-pip
         sudo apt-get install python-tk
         sudo apt-get install libjpeg-dev libfreetype6 libfreetype6-dev zlib1g-dev
         sudo apt-get install python-imaging
         or try https://www.pkimber.net/howto/python/modules/pillow.html
         sudo apt-get install python-imaging
-    - controls:
-          space             : pause
-          enter             : go to next image in sequence
-          right             : go to next image in sequence
-          left              : go to previous image in sequence
-          down              : go to last viewed image
-          page up           : go to last image of previous folder
-          page down         : go to first image of next folder
-          z                 : go to random image
-          q                 : shuffle/sort sequence
-          y                 : reload image list from paths
-          F11               : toggle fullscreen
-          escape            : exit
-          delete            : permanently delete image from computer (skip Recycle Bin)
-          ctrl+shift+delete : permanently delete folder from computer (skip Recycle Bin)
+      This might be out of date once updated to Python 3.
 
-HISTORY:
-    (see git)
+Controls:
+    space             : pause
+    enter             : go to next image in sequence
+    right             : go to next image in sequence
+    left              : go to previous image in sequence
+    down              : go to last viewed image
+    page up           : go to last image of previous folder
+    page down         : go to first image of next folder
+    z                 : go to random image
+    q                 : shuffle/sort sequence
+    y                 : reload image list from paths
+    F11               : toggle fullscreen
+    escape            : exit
+    delete            : permanently delete image from computer (skip Recycle Bin)
+    ctrl+shift+delete : permanently delete folder from computer (skip Recycle Bin)
 
-TODO:
+Todo:
+    - upgrade to python3
     - simplify code
+    - fix next image after deleting folder
 '''
 
-import os
-import re
-import time
-import pdb
+import os, re, time, pdb, shutil
+from argparse import ArgumentParser
+from random import randint, shuffle
 try:
     import Tkinter as tk # python2
 except:
     import tkinter as tk # python3
 from PIL import Image, ImageTk
-from argparse import ArgumentParser
-from random import randint, shuffle
-import pdb
-import shutil
+
 
 defaultwidth  = 800
 defaultheight = 600
-defaultx      = 0
-defaulty      = 0
+defaultx = 0
+defaulty = 0
+
 
 class SlideShow:
-    def __init__(self, pathlist=[], recurse=False, regex='.', fullscreen=True, delay=1.0, zoomed=True, width=defaultwidth, height=defaultheight, x=defaultx, y=defaulty, shuffle=False):
+    def __init__(self, pathlist=[], recurse=False, regex='.', fullscreen=True, delay=1.0, zoomed=True, width=800, height=600, x=0, y=0, shuffle=False):
         # window
         self.title       = 'meh.py'
         self.fullscreen  = fullscreen
@@ -88,7 +84,7 @@ class SlideShow:
         self.i           = 0
         # misc
         self.listdeleted = True
-        
+
         if self.imagepaths:
             # init Tkinter window
             self.root = tk.Tk()
@@ -97,7 +93,7 @@ class SlideShow:
                 self.height     = self.root.winfo_screenheight()
                 self.root.geometry('{}x{}'.format(self.width,self.height))
             else:
-                # set the dimensions of the screen 
+                # set the dimensions of the screen
                 # and where it is placed
                 self.root.geometry('%dx%d+%d+%d' % (self.width, self.height, self.x, self.y))
             self.frame = tk.Frame(self.root, bg='black', width=self.width, height=self.height, bd=0)
@@ -137,8 +133,8 @@ class SlideShow:
                 pass
         else:
             print('No images found')
-    
-    
+
+
     def get_image_paths(self, pathlist):
         for path in pathlist:
             path = os.path.abspath(path)
@@ -157,20 +153,20 @@ class SlideShow:
                         item = os.path.join(path,item)
                         if os.path.isfile(item):
                             yield(item)
-    
-    
+
+
     def filter_imagepaths(self, path):
         return (path.split('.')[-1] in ('png', 'jpg', 'jpeg', 'gif')) and self.pattern.search(path)
-    
-    
+
+
     def update_imagepaths(self):
         self.imagepaths = sorted(list(filter(self.filter_imagepaths, self.get_image_paths(self.pathlist))))
         self.length     = len(self.imagepaths)
         self.index      = len(self.imagepaths)-1
         self.previous   = 0
         return self.imagepaths
-    
-    
+
+
     def selectImage(self, force=False):
         # get image
         print('{}/{}  rand:{}  {}'.format(self.index, len(self.imagepaths), self.shuffle, self.imagepaths[self.index]))
@@ -198,8 +194,8 @@ class SlideShow:
                 self.gifId = self.root.after(self.gifDelay, self.gifLoop)
             else:
                 self.gif = None
-    
-    
+
+
     def gifLoop(self, event=None):
         if self.gif:
             self.i = (self.i + 1) % len(self.gif)
@@ -209,8 +205,8 @@ class SlideShow:
             if self.gifId:
                 self.root.after_cancel(self.gifId)
             self.gifId = self.root.after(self.gifDelay, self.gifLoop)
-    
-    
+
+
     def resizeImage(self):
         if self.zoomed:
             if self.gif:
@@ -229,31 +225,31 @@ class SlideShow:
                     self.img = self.img.resize((int(self.width), int(self.img.size[1]*widthratio)), Image.ANTIALIAS)
                 else:
                     self.img = self.img.resize((int(self.img.size[0]*heightratio), int(self.height)), Image.ANTIALIAS)
-    
-    
+
+
     def reload(self, event=None):
         self.selectImage(force=True)
         self.resizeImage()
         self.showSlide()
-    
-    
+
+
     def show(self):
         self.selectImage()
         self.resizeImage()
         self.showSlide()
-    
-    
+
+
     def showSlide(self):
         # display slide
         self.photoimage = ImageTk.PhotoImage(self.img)
         self.canvas.pack()
-        
+
         # switch slides
         if self.slide:
             self.canvas.delete(self.slide)
         self.slide = self.canvas.create_image(self.width/2, self.height/2, image=self.photoimage)
-    
-    
+
+
     def showloop(self):
         # increment index
         if not self.paused:
@@ -266,8 +262,8 @@ class SlideShow:
             self.show()
         # requeue in loop
         self.looperid = self.root.after(self.delayms, self.showloop)
-    
-    
+
+
     def get_rand(self):
         self.previous = self.index
         # this math avoids repeating the current image
@@ -279,13 +275,13 @@ class SlideShow:
     def get_prev(self):
         self.previous = self.index
         self.index = (self.index - 1) % self.length
-    
-    
+
+
     def get_next(self):
         self.previous = self.index
         self.index = (self.index + 1) % self.length
-    
-    
+
+
     def toggle_fullscreen(self, event=None):
         self.fullscreen = not self.fullscreen
         #pdb.set_trace()
@@ -300,15 +296,15 @@ class SlideShow:
         self.root.geometry('{}x{}'.format(self.width,self.height))
         self.show()
         return "break"
-    
-    
+
+
     def show_and_reset_timer(self):
         if self.looperid:
             self.root.after_cancel(self.looperid)
         self.show()
         self.looperid = self.root.after(self.delayms, self.showloop)
-    
-    
+
+
     def next_index(self, event=None):
         if self.shuffle:
             self.get_rand()
@@ -316,14 +312,14 @@ class SlideShow:
             self.get_next()
         self.show_and_reset_timer()
         return "break"
-    
-    
+
+
     def prev_index(self, event=None):
         self.get_prev()
         self.show_and_reset_timer()
         return "break"
-    
-    
+
+
     def next_dir(self, event=None):
         index_dir = os.path.dirname(self.imagepaths[self.index])
         for i in range(self.length):
@@ -336,8 +332,8 @@ class SlideShow:
         self.index = temp
         self.show_and_reset_timer()
         return "break"
-    
-    
+
+
     def prev_dir(self, event=None):
         index_dir = os.path.dirname(self.imagepaths[self.index])
         for i in range(self.length):
@@ -350,32 +346,32 @@ class SlideShow:
         self.index = temp
         self.show_and_reset_timer()
         return "break"
-    
-    
+
+
     def rand_index(self, event=None):
         self.get_rand()
         self.show_and_reset_timer()
         return "break"
-    
-    
+
+
     def go_back(self, event=None):
         temp = self.index
         self.index = self.previous
         self.previous = temp
         self.show_and_reset_timer()
         return "break"
-    
-    
+
+
     def pause_play(self, event=None):
         self.paused = not self.paused
         return "break"
-    
-    
+
+
     def shuffle_sort(self, event=None):
         self.shuffle = not self.shuffle
         return "break"
-    
-    
+
+
     def delete_file(self, event=None):
         path = self.imagepaths[self.index]
         # remove it from slideshow
@@ -398,8 +394,8 @@ class SlideShow:
             except:
                 pass
             return "break"
-    
-    
+
+
     def delete_folder(self, event=None):
         path = self.imagepaths[self.index]
         index = self.index
@@ -424,16 +420,16 @@ class SlideShow:
             except:
                 pass
             return "break"
-    
-    
+
+
     def close_out(self, event=None):
         try:
             self.root.destroy()
         except:
             pass
         return "break"
-    
-    
+
+
     def on_resize(self, event):
         # determine the ratio of old width/height to new width/height
         if self.width != event.width or self.height != event.height:
@@ -447,8 +443,8 @@ class SlideShow:
             if self.reloadId:
                 self.root.after_cancel(self.reloadId)
             self.reloadId = self.root.after(200, self.reload)
-    
-    
+
+
     def reload_imagepaths(self, event=None):
         self.update_imagepaths()
         return "break"
@@ -456,11 +452,11 @@ class SlideShow:
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('paths', 
+    parser.add_argument('paths',
                         nargs='*',
                         help='path(s) to image(s) or folder(s) of image(s)',
                         default=['.'])
-    parser.add_argument('--regex', 
+    parser.add_argument('--regex',
                         nargs='?',
                         help='regex filter on file paths',
                         default=r'.')
@@ -489,12 +485,10 @@ if __name__ == '__main__':
                         action='store',
                         type=str,
                         help='geometry in the form wxh[+x+y]',
-                        default='{}x{}+{}+{}'.format(defaultwidth,defaultheight,defaultx,defaulty))
-    # python meh.py "/personal/photos/Japan" -d 15 -z -r -R -g "910x930+0+0" &
-    # python meh.py "/personal/photos/Japan" -d 15 -z -r -R -g "910x930+910+0" &
+                        default='{}x{}+{}+{}'.format(defaultwidth, defaultheight, defaultx, defaulty))
     args = parser.parse_args()
-    
-    mat = re.match(r'\s*(?P<width>\d+)x(?P<height>\d+)\+(?P<x>\d+)\+(?P<y>\d+)\s*',args.geometry)
+
+    mat = re.match(r'\s*(?P<width>\d+)x(?P<height>\d+)\+(?P<x>\d+)\+(?P<y>\d+)\s*', args.geometry)
     if mat:
         width  = int(mat.groupdict()['width'])
         height = int(mat.groupdict()['height'])
@@ -507,7 +501,7 @@ if __name__ == '__main__':
         x      = defaultx
         y      = defaulty
         print('default geometry')
-    
+
     sldshw = SlideShow(pathlist   = args.paths,
                        recurse    = args.recurse,
                        regex      = args.regex,
