@@ -59,33 +59,35 @@ defaulty      = 0
 class SlideShow:
     def __init__(self, pathlist=[], recurse=False, regex='.', fullscreen=True, delay=1.0, zoomed=True, width=defaultwidth, height=defaultheight, x=defaultx, y=defaulty, shuffle=False):
         # window
-        self.title      = 'meh.py'
-        self.fullscreen = fullscreen
-        self.width      = width
-        self.height     = height
-        self.x          = x
-        self.y          = y
+        self.title       = 'meh.py'
+        self.fullscreen  = fullscreen
+        self.width       = width
+        self.height      = height
+        self.x           = x
+        self.y           = y
         # slide show
-        self.zoomed     = zoomed
-        self.paused     = False
-        self.delayms    = int(delay*1000)
-        self.slide      = None
-        self.shuffle    = shuffle
-        self.reloadId   = None
+        self.zoomed      = zoomed
+        self.paused      = False
+        self.delayms     = int(delay*1000)
+        self.slide       = None
+        self.shuffle     = shuffle
+        self.reloadId    = None
         # image selection
-        self.recurse    = recurse
-        self.pattern    = re.compile(regex) # filter files
-        self.pathlist   = pathlist # list of images or directories to search
+        self.recurse     = recurse
+        self.pattern     = re.compile(regex) # filter files
+        self.pathlist    = pathlist # list of images or directories to search
         self.update_imagepaths()
         #self.imagepaths = self.update_imagepaths() # automatically loads variables
         #self.length     = len(self.imagepaths)
         #self.index      = len(self.imagepaths)-1
         #self.previous   = 0
-        self.img        = None
+        self.img         = None
         # animation
-        self.gif        = False
-        self.gifCounter = 0
-        self.i          = 0
+        self.gif         = False
+        self.gifCounter  = 0
+        self.i           = 0
+        # misc
+        self.listdeleted = True
         
         if self.imagepaths:
             # init Tkinter window
@@ -114,7 +116,9 @@ class SlideShow:
             self.root.bind("<Right>", self.next_index)
             self.root.bind("<Down>", self.go_back)
             self.root.bind("<Prior>", self.prev_dir) # page up
+            self.root.bind("<Control-Left>", self.prev_dir)
             self.root.bind("<Next>", self.next_dir) # page down
+            self.root.bind("<Control-Right>", self.next_dir)
             self.root.bind("<space>", self.pause_play)
             self.root.bind("<Return>", self.next_index)
             self.root.bind("<Escape>", self.close_out)
@@ -135,8 +139,8 @@ class SlideShow:
             print('No images found')
     
     
-    def get_image_paths(self):
-        for path in self.pathlist:
+    def get_image_paths(self, pathlist):
+        for path in pathlist:
             path = os.path.abspath(path)
             if os.path.isfile(path):
                 # single file
@@ -160,7 +164,7 @@ class SlideShow:
     
     
     def update_imagepaths(self):
-        self.imagepaths = sorted(list(filter(self.filter_imagepaths, self.get_image_paths())))
+        self.imagepaths = sorted(list(filter(self.filter_imagepaths, self.get_image_paths(self.pathlist))))
         self.length     = len(self.imagepaths)
         self.index      = len(self.imagepaths)-1
         self.previous   = 0
@@ -298,26 +302,25 @@ class SlideShow:
         return "break"
     
     
+    def show_and_reset_timer(self):
+        if self.looperid:
+            self.root.after_cancel(self.looperid)
+        self.show()
+        self.looperid = self.root.after(self.delayms, self.showloop)
+    
+    
     def next_index(self, event=None):
         if self.shuffle:
             self.get_rand()
         else:
             self.get_next()
-        # reset loop
-        if self.looperid:
-            self.root.after_cancel(self.looperid)
-        self.show()
-        self.looperid = self.root.after(self.delayms, self.showloop)
+        self.show_and_reset_timer()
         return "break"
     
     
     def prev_index(self, event=None):
         self.get_prev()
-        # reset loop
-        if self.looperid:
-            self.root.after_cancel(self.looperid)
-        self.show()
-        self.looperid = self.root.after(self.delayms, self.showloop)
+        self.show_and_reset_timer()
         return "break"
     
     
@@ -331,11 +334,7 @@ class SlideShow:
             temp = (self.index + 1) % self.length
         self.previous = self.index
         self.index = temp
-        # reset loop
-        if self.looperid:
-            self.root.after_cancel(self.looperid)
-        self.show()
-        self.looperid = self.root.after(self.delayms, self.showloop)
+        self.show_and_reset_timer()
         return "break"
     
     
@@ -349,21 +348,13 @@ class SlideShow:
             temp = (self.index - 1) % self.length
         self.previous = self.index
         self.index = temp
-        # reset loop
-        if self.looperid:
-            self.root.after_cancel(self.looperid)
-        self.show()
-        self.looperid = self.root.after(self.delayms, self.showloop)
+        self.show_and_reset_timer()
         return "break"
     
     
     def rand_index(self, event=None):
         self.get_rand()
-        # reset loop
-        if self.looperid:
-            self.root.after_cancel(self.looperid)
-        self.show()
-        self.looperid = self.root.after(self.delayms, self.showloop)
+        self.show_and_reset_timer()
         return "break"
     
     
@@ -371,11 +362,7 @@ class SlideShow:
         temp = self.index
         self.index = self.previous
         self.previous = temp
-        # reset loop
-        if self.looperid:
-            self.root.after_cancel(self.looperid)
-        self.show()
-        self.looperid = self.root.after(self.delayms, self.showloop)
+        self.show_and_reset_timer()
         return "break"
     
     
@@ -395,12 +382,16 @@ class SlideShow:
         self.length -= 1
         self.imagepaths = self.imagepaths[:self.index] + self.imagepaths[self.index+1:]
         # delete
-        print('Delete file: '+path)
+        print('Delete file: ' + path)
+        if self.listdeleted:
+            with open("deleted.txt", "a") as fout:
+                filename = os.path.basename(path)
+                fout.write(filename.lower() + '\n')
         os.remove(path)
         # change image (close if none left)
         if self.length > 0:
             self.index %= self.length
-            self.show()
+            self.show_and_reset_timer()
         else:
             try:
                 self.root.destroy()
@@ -413,13 +404,20 @@ class SlideShow:
         path = self.imagepaths[self.index]
         index = self.index
         dir = os.path.dirname(path)
-        print('Delete folder: '+dir)
+        print('Delete folder: ' + dir)
+        if self.listdeleted:
+            with open("deleted.txt", "a") as fout:
+                fout.write(os.path.basename(dir).lower() + '\n')
+                for root, dirs, filenames in os.walk(dir):
+                    for filename in filenames:
+                        subpath = os.path.join(root,filename)
+                        fout.write(filename.lower() + '\n')
         shutil.rmtree(dir)
         self.update_imagepaths()
         # change image (close if none left)
         if self.length > 0:
             self.index = index % self.length
-            self.show()
+            self.show_and_reset_timer()
         else:
             try:
                 self.root.destroy()
