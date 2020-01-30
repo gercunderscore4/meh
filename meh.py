@@ -45,9 +45,12 @@ Todo:
     - fix next image after deleting folder
     - fix deleted.txt
     - consider using log
+    - add SVG?
 
 For SVG:
     # https://stackoverflow.com/questions/15130670/pil-and-vectorbased-graphics
+    from io import BytesIO
+    import cairosvg
     out = BytesIO()
     cairosvg.svg2png(url='path/to/svg', write_to=out)
     image = Image.open(out)
@@ -58,11 +61,9 @@ from pathlib import Path
 from argparse import ArgumentParser
 from random import randint, shuffle
 import tkinter as tk
-from io import BytesIO
 # installed
 from PIL import Image, ImageTk
 import win32gui, win32con
-import cairosvg
 from send2trash import send2trash
 
 
