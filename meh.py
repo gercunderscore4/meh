@@ -42,10 +42,9 @@ Controls:
 
 Todo:
     - simplify code
-    - fix next image after deleting folder
-    - fix deleted.txt
     - consider using log
     - add SVG?
+    - thread next image loading
 
 For SVG:
     # https://stackoverflow.com/questions/15130670/pil-and-vectorbased-graphics
@@ -99,8 +98,6 @@ class SlideShow:
         self.gif         = False
         self.gifCounter  = 0
         self.i           = 0
-        # misc
-        self.listdeleted = False
 
         if self.imagepaths:
             # init Tkinter window
@@ -140,6 +137,7 @@ class SlideShow:
             self.root.bind("<Configure>",            self.on_resize) # not working
 
             # show
+            self.show() # in case paused
             self.showloop()
             self.root.mainloop()
 
@@ -195,7 +193,7 @@ class SlideShow:
         self.length = len(self.imagepaths)
 
         # choose a starting index
-        self.index = self.length - 1
+        self.index = 0
         if firstPath is not None:
             for i,f in enumerate(self.imagepaths):
                 if f.samefile(firstPath):
@@ -209,7 +207,7 @@ class SlideShow:
 
     def selectImage(self, force=False):
         # get image
-        print('{}/{}  rand:{}  {}'.format(self.index, len(self.imagepaths), self.shuffle, self.imagepaths[self.index]))
+        print('{:{w:}}/{:{w:}}  rand:{:<5}  "{}"'.format(self.index, self.length, str(self.shuffle), self.imagepaths[self.index], w=len(str(self.length))))
         if self.title != self.imagepaths[self.index] or force:
             self.title = self.imagepaths[self.index]
             self.root.wm_title(self.title)
@@ -360,30 +358,44 @@ class SlideShow:
         return "break"
 
 
-    def next_dir(self, event=None):
-        index_dir = self.imagepaths[self.index].parent
+    def first_of_next_dir(self):
+        current_dir = self.imagepaths[self.index].parent
+        # move until folder does not match
+        temp = self.index
         for i in range(self.length):
-            temp = (self.index + i) % self.length
-            if not index_dir.samefile(self.imagepaths[temp].parent):
+            temp = (temp + 1) % self.length
+            if not current_dir.samefile(self.imagepaths[temp].parent):
                 break
         else:
+            # failed to find a different folder, just get next
             temp = (self.index + 1) % self.length
+        return temp
+
+
+    def last_of_prev_dir(self):
+        current_dir = self.imagepaths[self.index].parent
+        # move until folder does not match
+        temp = self.index
+        for i in range(self.length):
+            temp = (temp - 1) % self.length
+            if not current_dir.samefile(self.imagepaths[temp].parent):
+                break
+        else:
+            # failed to find a different folder, just get next
+            temp = (self.index + 1) % self.length
+        return temp
+
+
+    def next_dir(self, event=None):
         self.previous = self.index
-        self.index = temp
+        self.index = self.first_of_next_dir()
         self.show_and_reset_timer()
         return "break"
 
 
     def prev_dir(self, event=None):
-        index_dir = self.imagepaths[self.index].parent
-        for i in range(self.length):
-            temp = (self.index - i) % self.length
-            if not index_dir.samefile(self.imagepaths[temp].parent):
-                break
-        else:
-            temp = (self.index - 1) % self.length
         self.previous = self.index
-        self.index = temp
+        self.index = self.last_of_prev_dir()
         self.show_and_reset_timer()
         return "break"
 
@@ -415,13 +427,10 @@ class SlideShow:
     def delete_file(self, event=None):
         path = self.imagepaths[self.index]
         # remove it from slideshow
-        self.length -= 1
         self.imagepaths = self.imagepaths[:self.index] + self.imagepaths[self.index+1:]
+        self.length -= 1
         # delete
         print('Delete file: "{}"'.format(path))
-        if self.listdeleted:
-            with open("deleted.txt", "a") as fout:
-                fout.write(path.name.lower() + '\n')
         send2trash(str(path))
         # change image (close if none left)
         if self.length > 0:
@@ -436,20 +445,21 @@ class SlideShow:
 
 
     def delete_folder(self, event=None):
-        path = self.imagepaths[self.index]
+        # save current-index and previous-index-not-in-this-folder
         index = self.index
-        dir = path.parent
+        prev_dir_index = self.last_of_prev_dir()
+        # delete folder
+        dir = self.imagepaths[self.index].parent
         print('Delete folder: "{}"'.format(dir))
-        if self.listdeleted:
-            with open("deleted.txt", "a") as fout:
-                fout.write(dir.name.lower() + '\n')
-                for item in dir.rglob('*'):
-                    fout.write(item.name.lower() + '\n')
+        for item in dir.rglob('*'):
+            print('Delete file: "{}"'.format(item))
         send2trash(str(dir))
+        # easier to simply update full list
         self.update_imagepaths()
         # change image (close if none left)
         if self.length > 0:
-            self.index = index % self.length
+            self.index = (prev_dir_index + 1) % self.length
+            self.back = index % self.length # last position, even if it doesn't exist
             self.show_and_reset_timer()
         else:
             try:
@@ -499,24 +509,19 @@ if __name__ == '__main__':
                         default=r'.')
     parser.add_argument('-r', '--recurse',
                         action='store_true',
-                        help='recurse though path directory',
-                        default=False)
+                        help='recurse though path directory')
     parser.add_argument('-R', '--random',
                         action='store_true',
-                        help='shuffle order',
-                        default=False)
+                        help='shuffle order')
     parser.add_argument('-f', '--fullscreen',
                         action='store_true',
-                        help='set to fullscreen mode',
-                        default=False)
+                        help='set to fullscreen mode')
     parser.add_argument('-z', '--zoomed',
                         action='store_true',
-                        help='scale images to fit the window (without distorting or obscuring them)',
-                        default=False)
+                        help='scale images to fit the window (without distorting or obscuring them)')
     parser.add_argument('-a', '--auto',
                         action='store_true',
-                        help='autoplay (advance after \'delay\' seconds)',
-                        default=10)
+                        help='autoplay (advance after \'delay\' seconds)')
     parser.add_argument('-d', '--delay',
                         action='store',
                         type=float,
@@ -552,7 +557,6 @@ if __name__ == '__main__':
         height = 600
         x      = 0
         y      = 0
-        print('default geometry')
 
     sldshw = SlideShow(pathlist   = args.paths,
                        recurse    = args.recurse,
