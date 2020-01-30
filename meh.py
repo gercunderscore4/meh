@@ -174,10 +174,11 @@ class SlideShow:
             # (users typically like to be able to scroll through the current directory)
             # except we need to start with that file
             if path.is_file():
-                path = path.parent
-                # also grab first file path, use later to decide which image goes first
+                # grab first file path, use later to decide which image goes first
                 if firstPath is None:
                     firstPath = path
+                # get folder
+                path = path.parent
             # get all files in directory
             if path.is_dir():
                 for f in path.glob(globStr):
