@@ -1,1 +1,1 @@
-start pyw "%~dp0meh.py" -z "%1"
+START pyw "%~dp0meh.py" -z %1
