@@ -1,14 +1,12 @@
 meh
 ---
-Python image viewer based (loosely) on feh.
+Python image viewer for Windows based (loosely) on feh.
 
 Dependencies
 ------------
 Python 3.5+
-PIL
-win32gui
-win32con
-cairosvg
+Pillow
+pywin32
 send2trash
 
 Recommended Usage
