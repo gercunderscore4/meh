@@ -1,1 +1,1 @@
-PowerShell -WindowStyle Hidden -Command "py -3 '%~dp0meh.py' -z '%1'"
+PowerShell -Command py '%~dp0meh.py' -z '%1'
