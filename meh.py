@@ -102,6 +102,7 @@ class SlideShow:
         if self.imagepaths:
             # init Tkinter window
             self.root = tk.Tk()
+            self.root.iconbitmap(Path(__file__).parent / 'icon' / 'meh.ico')
             if self.fullscreen:
                 self.width      = self.root.winfo_screenwidth()
                 self.height     = self.root.winfo_screenheight()
