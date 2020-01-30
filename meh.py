@@ -42,9 +42,7 @@ Controls:
 
 Todo:
     - simplify code
-    - consider using log
     - add SVG?
-    - thread next image loading
 
 For SVG:
     # https://stackoverflow.com/questions/15130670/pil-and-vectorbased-graphics
@@ -95,62 +93,67 @@ class SlideShow:
         #self.previous   = 0
         self.img         = None
         # animation
-        self.gif         = False
+        self.gifFrames   = False
         self.gifCounter  = 0
-        self.i           = 0
+        self.gifIndex    = 0
 
-        if self.imagepaths:
-            # init Tkinter window
-            self.root = tk.Tk()
-            self.root.iconbitmap(Path(__file__).parent / 'icon' / 'meh.ico')
-            if self.fullscreen:
-                self.width      = self.root.winfo_screenwidth()
-                self.height     = self.root.winfo_screenheight()
-                self.root.geometry('{}x{}'.format(self.width,self.height))
-            else:
-                # set the dimensions of the screen
-                # and where it is placed
-                self.root.geometry('%dx%d+%d+%d' % (self.width, self.height, self.x, self.y))
-            self.frame = tk.Frame(self.root, bg='black', width=self.width, height=self.height, bd=0)
-            self.frame.pack(fill=tk.BOTH, expand=1)
-            self.canvas = tk.Canvas(self.frame, bg='black', width=self.width, height=self.height, bd=0, highlightthickness=0, relief='ridge')
-            self.canvas.pack(fill=tk.BOTH, expand=1)
+        # if no images, close
+        if not self.imagepaths:
+            return
 
-            self.root.attributes("-fullscreen", self.fullscreen)
-
-            # controls
-            self.root.bind("<F11>",                  self.toggle_fullscreen)
-            self.root.bind("<z>",                    self.rand_index)
-            self.root.bind("<q>",                    self.shuffle_sort)
-            self.root.bind("<y>",                    self.reload_imagepaths)
-            self.root.bind("<Left>",                 self.prev_index)
-            self.root.bind("<Right>",                self.next_index)
-            self.root.bind("<Down>",                 self.go_back)
-            self.root.bind("<Prior>",                self.prev_dir) # page up
-            self.root.bind("<Control-Left>",         self.prev_dir)
-            self.root.bind("<Next>",                 self.next_dir) # page down
-            self.root.bind("<Control-Right>",        self.next_dir)
-            self.root.bind("<space>",                self.pause_play)
-            self.root.bind("<Return>",               self.next_index)
-            self.root.bind("<Escape>",               self.close_out)
-            self.root.bind("<Control-Shift-Delete>", self.delete_folder)
-            self.root.bind("<Delete>",               self.delete_file)
-            self.root.bind("<Configure>",            self.on_resize) # not working
-
-            # show
-            self.show() # in case paused
-            self.showloop()
-            self.root.mainloop()
-
-            # quit
-            try:
-                self.root.destroy()
-            except:
-                pass
+        # init Tkinter window
+        self.root = tk.Tk()
+        if self.fullscreen:
+            self.width      = self.root.winfo_screenwidth()
+            self.height     = self.root.winfo_screenheight()
+            self.root.geometry('{}x{}'.format(self.width,self.height))
         else:
-            print('No images found')
+            # set the dimensions of the screen
+            # and where it is placed
+            self.root.geometry('%dx%d+%d+%d' % (self.width, self.height, self.x, self.y))
+        self.frame = tk.Frame(self.root, bg='black', width=self.width, height=self.height, bd=0)
+        self.frame.pack(fill=tk.BOTH, expand=1)
+        # use #202020 for background to distinguish from black (especially for images with transparency)
+        # tried making a tiled background but it was slow when scaled up
+        self.canvas = tk.Canvas(self.frame, bg='#202020', width=self.width, height=self.height, bd=0, highlightthickness=0, relief='ridge')
+        self.canvas.pack(fill=tk.BOTH, expand=1)
 
+        self.root.attributes("-fullscreen", self.fullscreen)
 
+        # set icon if present
+        tempPath = Path(__file__).parent / 'images' / 'meh.ico'
+        if tempPath.is_file():
+            self.root.iconbitmap(tempPath)
+
+        # controls
+        self.root.bind("<F11>",                  self.toggle_fullscreen)
+        self.root.bind("<z>",                    self.rand_index)
+        self.root.bind("<q>",                    self.shuffle_sort)
+        self.root.bind("<y>",                    self.reload_imagepaths)
+        self.root.bind("<Left>",                 self.prev_index)
+        self.root.bind("<Right>",                self.next_index)
+        self.root.bind("<Down>",                 self.go_back)
+        self.root.bind("<Prior>",                self.prev_dir) # page up
+        self.root.bind("<Control-Left>",         self.prev_dir)
+        self.root.bind("<Next>",                 self.next_dir) # page down
+        self.root.bind("<Control-Right>",        self.next_dir)
+        self.root.bind("<space>",                self.pause_play)
+        self.root.bind("<Return>",               self.next_index)
+        self.root.bind("<Escape>",               self.close_out)
+        self.root.bind("<Control-Shift-Delete>", self.delete_folder)
+        self.root.bind("<Delete>",               self.delete_file)
+        self.root.bind("<Configure>",            self.on_resize) # not working
+
+        # show
+        self.show() # in case paused
+        self.showloop()
+        self.root.mainloop()
+
+        # quit
+        try:
+            self.root.destroy()
+        except:
+            pass
 
 
     def update_imagepaths(self):
@@ -209,7 +212,7 @@ class SlideShow:
 
     def selectImage(self, force=False):
         # get image
-        print('{:{w:}}/{:{w:}}  rand:{:<5}  "{}"'.format(self.index, self.length, str(self.shuffle), self.imagepaths[self.index], w=len(str(self.length))))
+        #print('{:{w:}}/{:{w:}}  rand:{:<5}  "{}"'.format(self.index, self.length, str(self.shuffle), self.imagepaths[self.index], w=len(str(self.length))))
         if self.title != self.imagepaths[self.index] or force:
             self.title = self.imagepaths[self.index]
             self.root.wm_title(self.title)
@@ -221,25 +224,26 @@ class SlideShow:
                 except:
                     self.gifDelay = 100
                 # get frames
-                self.gif = []
+                self.gifFrames = []
                 try:
                     while 1:
-                        self.gif.append(self.img.copy())
+                        self.gifFrames.append(self.img.copy())
                         self.img.seek(self.img.tell()+1)
                 except EOFError:
                     pass
                 # initialize
-                self.i = 0
-                self.img = self.gif[self.i]
-                self.gifId = self.root.after(self.gifDelay, self.gifLoop)
+                self.gifIndex = 0
+                self.img = self.gifFrames[self.gifIndex]
+                if len(self.gifFrames) > 1:
+                    self.gifId = self.root.after(self.gifDelay, self.gifLoop)
             else:
-                self.gif = None
+                self.gifFrames = None
 
 
     def gifLoop(self, event=None):
-        if self.gif:
-            self.i = (self.i + 1) % len(self.gif)
-            self.img = self.gif[self.i]
+        if self.gifFrames:
+            self.gifIndex = (self.gifIndex + 1) % len(self.gifFrames)
+            self.img = self.gifFrames[self.gifIndex]
             # draw frame
             self.showSlide()
             if self.gifId:
@@ -249,15 +253,18 @@ class SlideShow:
 
     def resizeImage(self):
         if self.zoomed:
-            if self.gif:
+            if self.gifFrames:
                 widthratio = float(self.width)/self.img.size[0]
                 heightratio = float(self.height)/self.img.size[1]
+                # apply evenly to all frames
                 if widthratio < heightratio:
-                    for i in range(len(self.gif)):
-                        self.gif[i] = self.gif[i].resize((int(self.width), int(self.img.size[1]*widthratio)), Image.ANTIALIAS)
+                    for i in range(len(self.gifFrames)):
+                        self.gifFrames[i] = self.gifFrames[i].resize((int(self.width), int(self.img.size[1]*widthratio)), Image.ANTIALIAS)
                 else:
-                    for i in range(len(self.gif)):
-                        self.gif[i] = self.gif[i].resize((int(self.img.size[0]*heightratio), int(self.height)), Image.ANTIALIAS)
+                    for i in range(len(self.gifFrames)):
+                        self.gifFrames[i] = self.gifFrames[i].resize((int(self.img.size[0]*heightratio), int(self.height)), Image.ANTIALIAS)
+                # re-select current frame
+                self.img = self.gifFrames[self.gifIndex]
             else:
                 widthratio = float(self.width)/self.img.size[0]
                 heightratio = float(self.height)/self.img.size[1]
@@ -280,15 +287,12 @@ class SlideShow:
 
 
     def showSlide(self):
-        # display slide
-        self.photoimage = ImageTk.PhotoImage(self.img)
-        self.canvas.pack()
-
         # switch slides
         if self.slide:
             self.canvas.delete(self.slide)
+        self.photoimage = ImageTk.PhotoImage(self.img) # save image from garbage collection
         self.slide = self.canvas.create_image(self.width/2, self.height/2, image=self.photoimage)
-
+        
 
     def showloop(self):
         # increment index
@@ -553,7 +557,7 @@ if __name__ == '__main__':
         height = int(mat.groupdict()['height'])
         x      = int(mat.groupdict()['x'])
         y      = int(mat.groupdict()['y'])
-        print('geometry {}x{}+{}+{}'.format(width,height,x,y))
+        #print('geometry {}x{}+{}+{}'.format(width,height,x,y))
     else:
         width  = 800
         height = 600
