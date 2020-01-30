@@ -1,6 +1,6 @@
 meh
 ---
-Python image viewer based (loosely) on feh
+Python image viewer based (loosely) on feh.
 
 Dependencies
 ------------
@@ -13,7 +13,7 @@ send2trash
 
 Recommended Usage
 -----------------
-The .bat script simplifies use for Windows users.
+The meh.bat script simplifies use for Windows users.
 User may set this script as default application for image files.
 Or drag-and-drop a file or folder onto the script.
 Or add a shortcut to this script to their SendTo folder.
@@ -46,5 +46,5 @@ License
 "THE BEER-WARE LICENSE" (Revision 42):
 <gercunderscore4@gmail.com> wrote this file. As long as you retain this 
 notice you can do whatever you want with this stuff. If we meet some day, 
-and you think this stuff is worth it, you can buy me a beer in return 
+and you think this stuff is worth it, you can buy me a beer in return.
 Geoffrey Card
