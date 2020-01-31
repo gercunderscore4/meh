@@ -237,13 +237,17 @@ class SlideShow:
                 if len(self.gifFrames) > 1:
                     self.gifId = self.root.after(self.gifDelay, self.gifLoop)
             else:
-                self.gifFrames = None
+                # not a gif, clear all gif info
+                self.gifDelay = 0
+                self.gifIndex = 0
+                self.gifFrames = []
+                self.gifPhotos = []
 
 
     def gifLoop(self, event=None):
         if self.gifFrames:
             self.gifIndex = (self.gifIndex + 1) % len(self.gifFrames)
-            self.img = self.gifFrames[self.gifIndex]
+            self.photo = self.gifPhotos[self.gifIndex]
             # draw frame
             self.showSlide()
             if self.gifId:
@@ -253,25 +257,17 @@ class SlideShow:
 
     def resizeImage(self):
         if self.zoomed:
-            if self.gifFrames:
-                widthratio = float(self.width)/self.img.size[0]
-                heightratio = float(self.height)/self.img.size[1]
-                # apply evenly to all frames
-                if widthratio < heightratio:
-                    for i in range(len(self.gifFrames)):
-                        self.gifFrames[i] = self.gifFrames[i].resize((int(self.width), int(self.img.size[1]*widthratio)), Image.ANTIALIAS)
-                else:
-                    for i in range(len(self.gifFrames)):
-                        self.gifFrames[i] = self.gifFrames[i].resize((int(self.img.size[0]*heightratio), int(self.height)), Image.ANTIALIAS)
-                # re-select current frame
-                self.img = self.gifFrames[self.gifIndex]
+            widthratio = float(self.width)/self.img.size[0]
+            heightratio = float(self.height)/self.img.size[1]
+            if widthratio < heightratio:
+                newSize = (int(self.width), int(self.img.size[1]*widthratio))
             else:
-                widthratio = float(self.width)/self.img.size[0]
-                heightratio = float(self.height)/self.img.size[1]
-                if widthratio < heightratio:
-                    self.img = self.img.resize((int(self.width), int(self.img.size[1]*widthratio)), Image.ANTIALIAS)
-                else:
-                    self.img = self.img.resize((int(self.img.size[0]*heightratio), int(self.height)), Image.ANTIALIAS)
+                newSize = (int(self.img.size[0]*heightratio), int(self.height))
+            if self.gifFrames:
+                self.gifPhotos = [ImageTk.PhotoImage(f.resize(newSize, Image.ANTIALIAS)) for f in self.gifFrames]
+                self.photo = self.gifPhotos[self.gifIndex]
+            else:
+                self.photo = ImageTk.PhotoImage(self.img.resize(newSize, Image.ANTIALIAS))
 
 
     def reload(self, event=None):
@@ -290,8 +286,7 @@ class SlideShow:
         # switch slides
         if self.slide:
             self.canvas.delete(self.slide)
-        self.photoimage = ImageTk.PhotoImage(self.img) # save image from garbage collection
-        self.slide = self.canvas.create_image(self.width/2, self.height/2, image=self.photoimage)
+        self.slide = self.canvas.create_image(self.width/2, self.height/2, image=self.photo)
         
 
     def showloop(self):
@@ -488,10 +483,6 @@ class SlideShow:
         if self.width != event.width or self.height != event.height:
             self.width = event.width
             self.height = event.height
-            # slows things down, but updates resolution
-            #self.img = Image.open(self.title)
-            #self.resizeImage()
-            #self.showSlide()
             # reload image after a moment
             if self.reloadId:
                 self.root.after_cancel(self.reloadId)
