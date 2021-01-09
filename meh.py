@@ -59,13 +59,14 @@ from argparse import ArgumentParser
 from random import randint, shuffle
 import tkinter as tk
 # installed
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ExifTags
 import win32gui, win32con
 from send2trash import send2trash
 
 
 class SlideShow:
     FILE_TYPES_LC = ('.png', '.jpg', '.jpeg', '.gif', '.bmp')
+    EXIF_ORIENTATION_TAG = 0x0112
 
     def __init__(self, pathlist, recurse, regex, fullscreen, paused, delay, zoomed, width, height, x, y, shuffle):
         # window
@@ -127,6 +128,7 @@ class SlideShow:
 
         # controls
         self.root.bind("<F11>",                  self.toggle_fullscreen)
+        self.root.bind("<f>",                    self.toggle_fullscreen)
         self.root.bind("<z>",                    self.rand_index)
         self.root.bind("<q>",                    self.shuffle_sort)
         self.root.bind("<y>",                    self.reload_imagepaths)
@@ -217,6 +219,22 @@ class SlideShow:
             self.title = self.imagepaths[self.index]
             self.root.wm_title(self.title)
             self.img = Image.open(self.title)
+
+            # deal with roation
+            # https://stackoverflow.com/questions/13872331/rotating-an-image-with-orientation-specified-in-exif-using-python-without-pil-in
+            try:
+                exif = self.img._getexif()
+                if exif[SlideShow.EXIF_ORIENTATION_TAG] == 3:
+                    self.img = self.img.rotate(180, expand=True)
+                elif exif[SlideShow.EXIF_ORIENTATION_TAG] == 6:
+                    self.img = self.img.rotate(270, expand=True)
+                elif exif[SlideShow.EXIF_ORIENTATION_TAG] == 8:
+                    self.img = self.img.rotate(90, expand=True)
+            except (AttributeError, KeyError, IndexError):
+                # cases: image don't have getexif
+                pass
+
+            # deal with animation
             if self.title.suffix.lower() == '.gif':
                 # get delay
                 try:
