@@ -222,17 +222,18 @@ class SlideShow:
 
             # deal with roation
             # https://stackoverflow.com/questions/13872331/rotating-an-image-with-orientation-specified-in-exif-using-python-without-pil-in
-            try:
-                exif = self.img._getexif()
-                if exif[SlideShow.EXIF_ORIENTATION_TAG] == 3:
-                    self.img = self.img.rotate(180, expand=True)
-                elif exif[SlideShow.EXIF_ORIENTATION_TAG] == 6:
-                    self.img = self.img.rotate(270, expand=True)
-                elif exif[SlideShow.EXIF_ORIENTATION_TAG] == 8:
-                    self.img = self.img.rotate(90, expand=True)
-            except (AttributeError, KeyError, IndexError):
-                # cases: image don't have getexif
-                pass
+            exif = self.img._getexif()
+            if exif is not None:
+                try:
+                    if exif[SlideShow.EXIF_ORIENTATION_TAG] == 3:
+                        self.img = self.img.rotate(180, expand=True)
+                    elif exif[SlideShow.EXIF_ORIENTATION_TAG] == 6:
+                        self.img = self.img.rotate(270, expand=True)
+                    elif exif[SlideShow.EXIF_ORIENTATION_TAG] == 8:
+                        self.img = self.img.rotate(90, expand=True)
+                except (AttributeError, KeyError, IndexError):
+                    # cases: image don't have getexif
+                    pass
 
             # deal with animation
             if self.title.suffix.lower() == '.gif':
@@ -551,13 +552,13 @@ if __name__ == '__main__':
 
     # hide console window
     # https://www.semicolonworld.com/question/43710/how-to-hide-console-window-in-python
-    try:
-        frgrnd_wndw = win32gui.GetForegroundWindow();
-        wndw_title  = win32gui.GetWindowText(frgrnd_wndw);
-        if wndw_title.endswith('python.exe') or wndw_title.endswith('py.exe'):
-            win32gui.ShowWindow(frgrnd_wndw, win32con.SW_HIDE);
-    except:
-        pass
+    #try:
+    #    frgrnd_wndw = win32gui.GetForegroundWindow();
+    #    wndw_title  = win32gui.GetWindowText(frgrnd_wndw);
+    #    if wndw_title.endswith('python.exe') or wndw_title.endswith('py.exe'):
+    #        win32gui.ShowWindow(frgrnd_wndw, win32con.SW_HIDE);
+    #except:
+    #    pass
 
     # parse geometry
     mat = re.match(r'\s*(?P<width>\d+)x(?P<height>\d+)\+(?P<x>\d+)\+(?P<y>\d+)\s*', args.geometry)
