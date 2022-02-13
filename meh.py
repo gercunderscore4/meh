@@ -51,6 +51,10 @@ For SVG:
     out = BytesIO()
     cairosvg.svg2png(url='path/to/svg', write_to=out)
     image = Image.open(out)
+
+py -3.9 -m pip install --upgrade pillow
+py -3.9 -m pip install --upgrade pywin32
+py -3.9 -m pip install --upgrade send2trash
 '''
 
 import re, pdb
@@ -133,12 +137,16 @@ class SlideShow:
         self.root.bind("<q>",                    self.shuffle_sort)
         self.root.bind("<y>",                    self.reload_imagepaths)
         self.root.bind("<Left>",                 self.prev_index)
+        self.root.bind("<a>",                    self.prev_index)
         self.root.bind("<Right>",                self.next_index)
+        self.root.bind("<d>",                    self.next_index)
         self.root.bind("<Down>",                 self.go_back)
         self.root.bind("<Prior>",                self.prev_dir) # page up
         self.root.bind("<Control-Left>",         self.prev_dir)
+        self.root.bind("<w>",                    self.prev_dir)
         self.root.bind("<Next>",                 self.next_dir) # page down
         self.root.bind("<Control-Right>",        self.next_dir)
+        self.root.bind("<s>",                    self.next_dir)
         self.root.bind("<space>",                self.pause_play)
         self.root.bind("<Return>",               self.next_index)
         self.root.bind("<Escape>",               self.close_out)
