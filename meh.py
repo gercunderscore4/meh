@@ -87,16 +87,18 @@ class SlideShow:
         self.recurse     = recurse
         self.pattern     = re.compile(regex, re.IGNORECASE) # filter files
         self.pathlist    = pathlist # list of images or directories to search
-        self.update_imagepaths()
-        #self.imagepaths = self.update_imagepaths() # automatically loads variables
-        #self.length     = len(self.imagepaths)
-        #self.index      = len(self.imagepaths)-1
-        #self.previous   = 0
+        self.imagepaths  = []
+        self.length      = 0
+        self.index       = 0
+        self.previous    = 0
         self.img         = None
+        self.photo       = None
         # animation
         self.gifFrames   = False
         self.gifCounter  = 0
         self.gifIndex    = 0
+
+        self.update_imagepaths()
 
         # if no images, close
         if not self.imagepaths:
@@ -226,7 +228,7 @@ class SlideShow:
 
             # deal with roation
             # https://stackoverflow.com/questions/13872331/rotating-an-image-with-orientation-specified-in-exif-using-python-without-pil-in
-            exif = self.img._getexif()
+            exif = self.img.getexif()
             if exif is not None:
                 try:
                     if exif[SlideShow.EXIF_ORIENTATION_TAG] == 3:
@@ -280,6 +282,7 @@ class SlideShow:
 
     def resizeImage(self):
         if self.zoomed:
+            # zoomed, resize
             widthratio = float(self.width)/self.img.size[0]
             heightratio = float(self.height)/self.img.size[1]
             if widthratio < heightratio:
@@ -291,6 +294,13 @@ class SlideShow:
                 self.photo = self.gifPhotos[self.gifIndex]
             else:
                 self.photo = ImageTk.PhotoImage(self.img.resize(newSize, Image.ANTIALIAS))
+        else:
+            # keep size
+            if self.gifFrames:
+                self.gifPhotos = [ImageTk.PhotoImage(f) for f in self.gifFrames]
+                self.photo = self.gifPhotos[self.gifIndex]
+            else:
+                self.photo = ImageTk.PhotoImage(self.img)
 
 
     def reload(self, event=None):
@@ -454,7 +464,7 @@ class SlideShow:
         self.imagepaths = self.imagepaths[:self.index] + self.imagepaths[self.index+1:]
         self.length -= 1
         # delete
-        print('Delete file: "{}"'.format(path))
+        print(f'Delete file: "{path}"')
         send2trash(str(path))
         # change image (close if none left)
         if self.length > 0:
@@ -474,9 +484,9 @@ class SlideShow:
         prev_dir_index = self.last_of_prev_dir()
         # delete folder
         dir = self.imagepaths[self.index].parent
-        print('Delete folder: "{}"'.format(dir))
+        print(f'Delete folder: "{dir}"')
         for item in dir.rglob('*'):
-            print('Delete file: "{}"'.format(item))
+            print(f'Delete file: "{item}"')
         send2trash(str(dir))
         # easier to simply update full list
         self.update_imagepaths()
@@ -551,6 +561,11 @@ if __name__ == '__main__':
                         action='store',
                         type=str,
                         help='window geometry in the form wxh+x+y (from top-left)',
+                        default='')
+    parser.add_argument('-v', '--verbose',
+                        action='store',
+                        type=str,
+                        help='print debugging info',
                         default='')
     args = parser.parse_args()
 
