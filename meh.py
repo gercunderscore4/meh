@@ -51,10 +51,6 @@ For SVG:
     out = BytesIO()
     cairosvg.svg2png(url='path/to/svg', write_to=out)
     image = Image.open(out)
-
-py -3.9 -m pip install --upgrade pillow
-py -3.9 -m pip install --upgrade pywin32
-py -3.9 -m pip install --upgrade send2trash
 '''
 
 import re, pdb
