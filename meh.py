@@ -65,7 +65,7 @@ from send2trash import send2trash
 
 
 class SlideShow:
-    FILE_TYPES_LC = ('.png', '.jpg', '.jpeg', '.gif', '.bmp')
+    FILE_TYPES_LC = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')
     EXIF_ORIENTATION_TAG = 0x0112
 
     def __init__(self, pathlist, recurse, regex, fullscreen, paused, delay, zoomed, width, height, x, y, shuffle):
