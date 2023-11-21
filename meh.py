@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-'''
+"""
 I wanted something like feh (image viewer) on Windows, so I built this.
 
 usage: meh.py [-h] [--regex [REGEX]] [-r] [-R] [-f] [-z] [-a] [-d DELAY]
@@ -40,7 +40,7 @@ Controls:
     delete            : delete image from computer (send to Recycle Bin)
     ctrl+shift+delete : delete folder from computer (send to Recycle Bin)
 
-Todo:
+TODO:
     - simplify code
     - add SVG?
 
@@ -51,7 +51,7 @@ For SVG:
     out = BytesIO()
     cairosvg.svg2png(url='path/to/svg', write_to=out)
     image = Image.open(out)
-'''
+"""
 
 import re, pdb
 from pathlib import Path
@@ -59,17 +59,18 @@ from argparse import ArgumentParser
 from random import randint, shuffle
 import tkinter as tk
 # installed
-from PIL import Image, ImageTk, ExifTags
+from PIL import Image, ImageTk, ImageSequence
 import win32gui, win32con
 from send2trash import send2trash
 
+
+EXIF_ORIENTATION_TAG = 0x0112  # https://exiftool.org/TagNames/EXIF.html
 
 DELAY_INC_MS = 1000
 DELAY_MIN_MS = 1000
 
 class SlideShow:
     FILE_TYPES_LC = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')
-    EXIF_ORIENTATION_TAG = 0x0112
 
     def __init__(self, pathlist, recurse, regex, fullscreen, paused, delay, zoomed, width, height, x, y, shuffle):
         # window
@@ -81,6 +82,7 @@ class SlideShow:
         self.y           = y
         # slide show
         self.zoomed      = zoomed
+        self.zoomedSize  = None
         self.paused      = paused
         self.delayms     = int(delay*1000)
         self.slide       = None
@@ -97,9 +99,10 @@ class SlideShow:
         self.img         = None
         self.photo       = None
         # animation
-        self.gifFrames   = False
-        self.gifCounter  = 0
-        self.gifIndex    = 0
+        self.gifDelay = 0
+        self.gifIndex = 0
+        self.gifFrames = []
+        self.gifPhotos = []
 
         self.update_imagepaths()
 
@@ -168,7 +171,6 @@ class SlideShow:
         except:
             pass
 
-
     def update_imagepaths(self):
         '''
         From given paths, get all files in the current directory.
@@ -222,7 +224,6 @@ class SlideShow:
 
         return self.imagepaths
 
-
     def selectImage(self, force=False):
         # get image
         #print('{:{w:}}/{:{w:}}  rand:{:<5}  "{}"'.format(self.index, self.length, str(self.shuffle), self.imagepaths[self.index], w=len(str(self.length))))
@@ -236,11 +237,11 @@ class SlideShow:
             exif = self.img.getexif()
             if exif is not None:
                 try:
-                    if exif[SlideShow.EXIF_ORIENTATION_TAG] == 3:
+                    if exif[EXIF_ORIENTATION_TAG] == 3:
                         self.img = self.img.rotate(180, expand=True)
-                    elif exif[SlideShow.EXIF_ORIENTATION_TAG] == 6:
+                    elif exif[EXIF_ORIENTATION_TAG] == 6:
                         self.img = self.img.rotate(270, expand=True)
-                    elif exif[SlideShow.EXIF_ORIENTATION_TAG] == 8:
+                    elif exif[EXIF_ORIENTATION_TAG] == 8:
                         self.img = self.img.rotate(90, expand=True)
                 except (AttributeError, KeyError, IndexError):
                     # cases: image don't have getexif
@@ -249,18 +250,14 @@ class SlideShow:
             # deal with animation
             if self.title.suffix.lower() == '.gif':
                 # get delay
-                try:
+                if 'duration' in self.img.info:
                     self.gifDelay = self.img.info['duration']
-                except:
+                else:
                     self.gifDelay = 100
                 # get frames
                 self.gifFrames = []
-                try:
-                    while 1:
-                        self.gifFrames.append(self.img.copy())
-                        self.img.seek(self.img.tell()+1)
-                except EOFError:
-                    pass
+                for frame in ImageSequence.Iterator(self.img):
+                    self.gifFrames.append(frame.copy())
                 # initialize
                 self.gifIndex = 0
                 self.img = self.gifFrames[self.gifIndex]
@@ -273,33 +270,51 @@ class SlideShow:
                 self.gifFrames = []
                 self.gifPhotos = []
 
-
     def gifLoop(self, event=None):
         if self.gifFrames:
-            self.gifIndex = (self.gifIndex + 1) % len(self.gifFrames)
-            self.photo = self.gifPhotos[self.gifIndex]
+            # increment index
+            self.gifIndex += 1
+            self.gifIndex %= len(self.gifFrames)
+            # get photo
+            self.photo = self.getGifPhoto(
+                self.gifFrames, 
+                self.gifIndex, 
+                self.zoomedSize
+            )
             # draw frame
             self.showSlide()
             if self.gifId:
                 self.root.after_cancel(self.gifId)
             self.gifId = self.root.after(self.gifDelay, self.gifLoop)
 
+    @staticmethod
+    def getGifPhoto(frames, index, size=None):
+        frame = frames[index]
+        if size:
+            frame = frame.resize(size, Image.ANTIALIAS)
+        return ImageTk.PhotoImage(frame)
 
     def resizeImage(self):
         if self.zoomed:
             # zoomed, resize
             widthratio = float(self.width)/self.img.size[0]
             heightratio = float(self.height)/self.img.size[1]
+            # get new size
             if widthratio < heightratio:
-                newSize = (int(self.width), int(self.img.size[1]*widthratio))
+                self.zoomedSize = (int(self.width), int(self.img.size[1]*widthratio))
             else:
-                newSize = (int(self.img.size[0]*heightratio), int(self.height))
+                self.zoomedSize = (int(self.img.size[0]*heightratio), int(self.height))
+            # resize image
             if self.gifFrames:
-                self.gifPhotos = [ImageTk.PhotoImage(f.resize(newSize, Image.ANTIALIAS)) for f in self.gifFrames]
-                self.photo = self.gifPhotos[self.gifIndex]
+                self.photo = self.getGifPhoto(
+                    self.gifFrames, 
+                    self.gifIndex, 
+                    self.zoomedSize
+                )
             else:
-                self.photo = ImageTk.PhotoImage(self.img.resize(newSize, Image.ANTIALIAS))
+                self.photo = ImageTk.PhotoImage(self.img.resize(self.zoomedSize, Image.ANTIALIAS))
         else:
+            self.zoomedSize = None
             # keep size
             if self.gifFrames:
                 self.gifPhotos = [ImageTk.PhotoImage(f) for f in self.gifFrames]
@@ -307,18 +322,15 @@ class SlideShow:
             else:
                 self.photo = ImageTk.PhotoImage(self.img)
 
-
     def reload(self, event=None):
         self.selectImage(force=True)
         self.resizeImage()
         self.showSlide()
 
-
     def show(self):
         self.selectImage()
         self.resizeImage()
         self.showSlide()
-
 
     def showSlide(self):
         # switch slides
@@ -326,7 +338,6 @@ class SlideShow:
             self.canvas.delete(self.slide)
         self.slide = self.canvas.create_image(self.width/2, self.height/2, image=self.photo)
         
-
     def showloop(self):
         # increment index
         if not self.paused:
@@ -340,7 +351,6 @@ class SlideShow:
         # requeue in loop
         self.looperid = self.root.after(self.delayms, self.showloop)
 
-
     def get_rand(self):
         self.previous = self.index
         # this math avoids repeating the current image
@@ -348,16 +358,13 @@ class SlideShow:
         newindex += 1 if newindex >= self.index else 0
         self.index = newindex
 
-
     def get_prev(self):
         self.previous = self.index
         self.index = (self.index - 1) % self.length
 
-
     def get_next(self):
         self.previous = self.index
         self.index = (self.index + 1) % self.length
-
 
     def toggle_fullscreen(self, event=None):
         self.fullscreen = not self.fullscreen
@@ -374,13 +381,11 @@ class SlideShow:
         self.show()
         return "break"
 
-
     def show_and_reset_timer(self):
         if self.looperid:
             self.root.after_cancel(self.looperid)
         self.show()
         self.looperid = self.root.after(self.delayms, self.showloop)
-
 
     def next_index(self, event=None):
         if self.shuffle:
@@ -390,12 +395,10 @@ class SlideShow:
         self.show_and_reset_timer()
         return "break"
 
-
     def prev_index(self, event=None):
         self.get_prev()
         self.show_and_reset_timer()
         return "break"
-
 
     def first_of_next_dir(self):
         current_dir = self.imagepaths[self.index].parent
@@ -410,7 +413,6 @@ class SlideShow:
             temp = (self.index + 1) % self.length
         return temp
 
-
     def last_of_prev_dir(self):
         current_dir = self.imagepaths[self.index].parent
         # move until folder does not match
@@ -424,13 +426,11 @@ class SlideShow:
             temp = (self.index + 1) % self.length
         return temp
 
-
     def next_dir(self, event=None):
         self.previous = self.index
         self.index = self.first_of_next_dir()
         self.show_and_reset_timer()
         return "break"
-
 
     def prev_dir(self, event=None):
         self.previous = self.index
@@ -438,12 +438,10 @@ class SlideShow:
         self.show_and_reset_timer()
         return "break"
 
-
     def rand_index(self, event=None):
         self.get_rand()
         self.show_and_reset_timer()
         return "break"
-
 
     def go_back(self, event=None):
         temp = self.index
@@ -452,26 +450,21 @@ class SlideShow:
         self.show_and_reset_timer()
         return "break"
 
-
     def pause_play(self, event=None):
         self.paused = not self.paused
         return "break"
-
 
     def shuffle_sort(self, event=None):
         self.shuffle = not self.shuffle
         return "break"
 
-
     def speed_up(self, event=None):
         self.delayms += DELAY_INC_MS
         return "break"
 
-
     def slow_down(self, event=None):
         self.delayms = max(self.delayms - DELAY_INC_MS, DELAY_MIN_MS)
         return "break"
-
 
     def delete_file(self, event=None):
         path = self.imagepaths[self.index]
@@ -491,7 +484,6 @@ class SlideShow:
             except:
                 pass
             return "break"
-
 
     def delete_folder(self, event=None):
         # save current-index and previous-index-not-in-this-folder
@@ -517,14 +509,12 @@ class SlideShow:
                 pass
             return "break"
 
-
     def close_out(self, event=None):
         try:
             self.root.destroy()
         except:
             pass
         return "break"
-
 
     def on_resize(self, event):
         # determine the ratio of old width/height to new width/height
@@ -535,7 +525,6 @@ class SlideShow:
             if self.reloadId:
                 self.root.after_cancel(self.reloadId)
             self.reloadId = self.root.after(200, self.reload)
-
 
     def reload_imagepaths(self, event=None):
         self.update_imagepaths()
