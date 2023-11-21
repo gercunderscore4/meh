@@ -64,6 +64,9 @@ import win32gui, win32con
 from send2trash import send2trash
 
 
+DELAY_INC_MS = 1000
+DELAY_MIN_MS = 1000
+
 class SlideShow:
     FILE_TYPES_LC = ('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')
     EXIF_ORIENTATION_TAG = 0x0112
@@ -133,6 +136,8 @@ class SlideShow:
         self.root.bind("<f>",                    self.toggle_fullscreen)
         self.root.bind("<z>",                    self.rand_index)
         self.root.bind("<q>",                    self.shuffle_sort)
+        self.root.bind("<,>",                    self.slow_down)
+        self.root.bind("<.>",                    self.speed_up)
         self.root.bind("<y>",                    self.reload_imagepaths)
         self.root.bind("<Left>",                 self.prev_index)
         self.root.bind("<a>",                    self.prev_index)
@@ -455,6 +460,16 @@ class SlideShow:
 
     def shuffle_sort(self, event=None):
         self.shuffle = not self.shuffle
+        return "break"
+
+
+    def speed_up(self, event=None):
+        self.delayms += DELAY_INC_MS
+        return "break"
+
+
+    def slow_down(self, event=None):
+        self.delayms = max(self.delayms - DELAY_INC_MS, DELAY_MIN_MS)
         return "break"
 
 
