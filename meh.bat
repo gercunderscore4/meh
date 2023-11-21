@@ -1,2 +1,2 @@
 CALL "%~dp0venv\Scripts\activate
-START pyw "%~dp0meh.py" -z %1
+START pythonw "%~dp0meh.py" -z %1
